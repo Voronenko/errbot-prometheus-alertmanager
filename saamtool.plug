@@ -1,0 +1,6 @@
+[Core]
+Name = SaAmtool
+Module = saamtool
+
+[Documentation]
+Description = Helper module for prometheus alert manager ( install with https://github.com/Voronenko/errbot-prometheus-alertmanager )
