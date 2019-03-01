@@ -42,8 +42,8 @@ class TestAmtoolHelper(TestCase):
         start_period = datetime.now(pytz.timezone('Europe/Kiev'))
         end_period = start_period + timedelta(minutes=1)
 
-        alert = amtoolhelper.get_alert('af2442fa7f7ee655')
-        matchers = amtoolhelper.get_matchers_by_alert(alert)
+        alert = amtoolhelper.get_alert('ee5d73c3f0a498f1')
+        matchers = amtoolhelper.get_matchers_by_alert(alert, ["name", "role"])
 
         silence = amtoolhelper.post_silence(
             matchers=matchers,

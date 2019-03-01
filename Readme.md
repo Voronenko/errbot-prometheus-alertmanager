@@ -53,6 +53,8 @@ EndpointDown  2018-04-03 08:48:47 UTC  Endpoint http://localhost:8080 down
 
 ```
 
+
+
 You can also filter alerts by their labels using the appropriate matcher. 
 A matcher contains the label name, the appropriate operation, which can be = 
 for full matching and =~ for partial matching, and the label's value.
@@ -160,6 +162,9 @@ ID                                    Matchers                        Ends At   
 4e89b15b-0814-41d3-8b74-16c513611732  instance=http://localhost:8080  2018-04-04 08:14:21 UTC  sammy
 ```
 
+
+
+
 Finally, to expire a silence, use the `!amtool silence expire` with the ID of the silence
  you want to expire:
 
@@ -174,6 +179,38 @@ amtool silence expire 4e89b15b-0814-41d3-8b74-16c513611732
 No output represents successful command execution. 
 If you see an error, make sure you provided the correct ID of the silence.
 
+
+## Dirty alert suppressing !amtool suppress <fingerprint>
+
+```
+amtool_suppress [-h] [--comment COMMENT] [--author AUTHOR]
+                      [--minutes MINUTES] [--hours HOURS] [--days DAYS]
+                      [--weeks WEEKS]
+                      matchers [matchers ...]
+```                      
+
+Assuming, you are ok to suppress alert using the labels from alert itself,
+you can use !alert suppress <fingerprint> labels-to-pick command
+
+`!amtool suppress <fingerprint> instance` - suppress all alerts with instance equal 
+to instance from alerts.
+
+Author, comment, minutes, hours, days are the optional arguments to tune silence duration 
+    and description.
+        
+![!amtool suppress](docs/amtool_suppress.jpg "!amtool suppress")
+
+`!amtool suppress <fingerprint>`  - suppress single alert using all the alert labels (except known ignored one)
+as a match
+
+`!amtool suppress <fingerprint>`
+
+As with any other silence, you can expire it issuing `!amtool silence expire` command.
+
+```
+!amtool silence expire 496715de-4c89-40ff-911d-8e4edb47e400
+Silence deleted
+```
 
 ## Brief for alerts !amtool alerts
 

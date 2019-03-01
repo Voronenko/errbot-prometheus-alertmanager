@@ -137,7 +137,7 @@ class AmtoolHelper(object):
 
     @staticmethod
     def get_matchers_by_alert(alert, ignore_terms=["severity", "monitor"],
-        include_terms=None):
+        include_terms=[]):
         matchers = []
         for name, value in alert["labels"].items():
             if name in ignore_terms:
@@ -185,12 +185,21 @@ class AmtoolHelper(object):
         return matchers
 
     @staticmethod
+    def convert_matchers_to_tuples(matchers):
+        result = []
+        for match in matchers:
+            result.append((match["name"], match["value"]))
+        return result
+
+    @staticmethod
     def get_filters_by_terms(terms=[]):
         matchers = []
         for term in terms:
             elements = term.split("=")
             if len(elements) == 1:
                 value = elements[0]
+                if value == "-":
+                    continue
                 name = "alertname"
             else:
                 name = elements[0]

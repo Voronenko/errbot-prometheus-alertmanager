@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+
+import pytz
 from errbot import arg_botcmd, botcmd, BotPlugin
 from amtoolhelper import AmtoolHelper
 import parsedatetime as pdt  # $ pip install parsedatetime
@@ -87,34 +89,45 @@ class SaAmtool(BotPlugin):
     @arg_botcmd('--days', type=int, default=0)
     @arg_botcmd('--hours', type=int, default=0)
     @arg_botcmd('--minutes', type=int, default=0)
-    @arg_botcmd('fingerprint', type=str, template='amtool_silence_add')
-    def amtool_suppress(self, mess, fingerprint, weeks, days, hours, minutes):
+    @arg_botcmd('--author', type=str, default="errbot")
+    @arg_botcmd('--comment', type=str, default="")
+    @arg_botcmd('criteria', type=str, metavar='matchers', nargs='+', default=[])
+    def amtool_suppress(self, mess, author="errbot", comment="", weeks=0, days=0, hours=0, minutes=0, criteria=[]):
         """Puts exact suppress match on alert"""
         helper = AmtoolHelper(
             alertmanager_address=self.config['server_address'])
 
-        start_period = datetime.now().utcnow()
+        start_period = datetime.now(pytz.timezone(self.config['time_zone']))
+        if weeks+days+hours+minutes == 0:
+            hours = 1
         end_period = start_period + timedelta(minutes=minutes, hours=hours,
                                               days=days, weeks=weeks)
-
+        self.log.info("Suppressing {0}->{1}".format(start_period, end_period))
+        fingerprint = criteria[0]
         alert = helper.get_alert(fingerprint)
-        matchers = helper.get_matchers_by_alert(alert)
-
+        matchers = helper.get_matchers_by_alert(alert, include_terms=criteria)
+        self.log.info("Matchers {0}".format(matchers))
         result = helper.post_silence(
             matchers=matchers,
             starts_at=start_period.isoformat(),
             ends_at=end_period.isoformat(),
-            created_by="errbot",
-            comment="errbot"
+            created_by=author,
+            comment=comment
         )
-        return result
+        self.send_card(title="Alert suppressed until {0}".format(end_period),
+                    body="Alert created by {0} with description '{1}'. To cancel  !amtool silence expire {2}".format(author, comment, result.silence_id),
+                    #                       thumbnail='https://raw.githubusercontent.com/errbotio/errbot/master/docs/_static/errbot.png',
+                    #                       image='https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png',
+                    # link=result["generatorURL"],
+                    fields=helper.convert_matchers_to_tuples(matchers),
+                    color='blue',
+                    in_reply_to=mess)
 
-        # Amtool compability aliases
 
-    @arg_botcmd('--inhibited', dest='inhibited', type=bool, default=True)
-    @arg_botcmd('--silenced', dest='silenced', type=bool, default=True)
-    @arg_botcmd('--active', dest='active', type=bool, default=True)
-    @arg_botcmd('--unprocessed', dest='unprocessed', type=bool, default=True)
+    @arg_botcmd('--inhibited', dest='inhibited', action='store_true')
+    @arg_botcmd('--silenced', dest='silenced', action='store_true')
+    @arg_botcmd('--active', dest='active', action='store_true')
+    @arg_botcmd('--unprocessed', dest='unprocessed', action='store_true')
     @arg_botcmd('--receiver', dest='receiver', type=str, default="")
     @arg_botcmd('matchers', type=str, metavar='matchers', nargs='+',
                 template='amtool_alert_query')
@@ -150,11 +163,11 @@ class SaAmtool(BotPlugin):
         )
         return result
 
-    @arg_botcmd('--author', type=str, default=None)
+    @arg_botcmd('--author', type=str, default="errbot")
     @arg_botcmd('--duration', type=str, default="1 minute")
     @arg_botcmd('--start', type=str, default=None)
     @arg_botcmd('--end', type=str, default=None)
-    @arg_botcmd('--comment', type=str, default=None)
+    @arg_botcmd('--comment', type=str, default="")
     @arg_botcmd('matchers', type=str, metavar='matchers', nargs='+',
                 template='amtool_silence_add')
     def amtool_silence_add(self, mess, author, duration, start, end, comment,
@@ -207,6 +220,7 @@ class SaAmtool(BotPlugin):
                        0] - datetime.min
             end_period = start_period + diff
         parsed_matchers = helper.get_matchers_by_terms(matchers)
+        self.log.info("Suppressing {0}->{1}".format(start_period, end_period))
         result = helper.post_silence(
             matchers=parsed_matchers,
             starts_at=start_period.isoformat(),
@@ -214,7 +228,16 @@ class SaAmtool(BotPlugin):
             created_by=author,
             comment=comment
         )
-        return result
+
+        self.send_card(title="Silence added until {0}".format(end_period),
+                    body="Alert created by {0} with description '{1}'. To cancel  !amtool silence expire {2}".format(author, comment, result.silence_id),
+                    #                       thumbnail='https://raw.githubusercontent.com/errbotio/errbot/master/docs/_static/errbot.png',
+                    #                       image='https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png',
+                    # link=result["generatorURL"],
+                    fields=helper.convert_matchers_to_tuples(matchers),
+                    color='blue',
+                    in_reply_to=mess)
+
 
     @arg_botcmd('silence_id', type=str)
     def amtool_silence_expire(self, mess, silence_id):
@@ -229,13 +252,13 @@ class SaAmtool(BotPlugin):
         helper = AmtoolHelper(
             alertmanager_address=self.config['server_address'])
         result = helper.delete_silence(silence_id)
-        return result
+        return "Silence deleted"
 
-    @arg_botcmd('--expired', type=bool, default=None)
+    @arg_botcmd('--expired', action='store_true')
     @arg_botcmd('--within', type=str, default=None)
     @arg_botcmd('matchers', type=str, metavar='matchers', nargs='+',
                 template="amtool_silence_query")
-    def amtool_silences(self, mess, expired=None, within=None, matchers=[]):
+    def amtool_silence_query(self, mess, expired=None, within=None, matchers=[]):
         """
           Amtool has a simplified prometheus query syntax The non-option section of arguments constructs a list of "Matcher Groups"
           that will be used to filter your query. The following examples will attempt to show this behaviour in action:
