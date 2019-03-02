@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-
+import dateparser
 import pytz
 from errbot import arg_botcmd, botcmd, BotPlugin
 from amtoolhelper import AmtoolHelper
@@ -91,7 +91,7 @@ class SaAmtool(BotPlugin):
     @arg_botcmd('--minutes', type=int, default=0)
     @arg_botcmd('--author', type=str, default="errbot")
     @arg_botcmd('--comment', type=str, default="")
-    @arg_botcmd('criteria', type=str, metavar='matchers', nargs='+', default=[])
+    @arg_botcmd('criteria', type=str, metavar='criteria', nargs='+', default=[])
     def amtool_suppress(self, mess, author="errbot", comment="", weeks=0, days=0, hours=0, minutes=0, criteria=[]):
         """Puts exact suppress match on alert"""
         helper = AmtoolHelper(
@@ -103,7 +103,8 @@ class SaAmtool(BotPlugin):
         end_period = start_period + timedelta(minutes=minutes, hours=hours,
                                               days=days, weeks=weeks)
         self.log.info("Suppressing {0}->{1}".format(start_period, end_period))
-        fingerprint = criteria[0]
+        fingerprint = criteria.pop(0)
+        self.log.info("Getting alert by fingerprint {0}".format(fingerprint))
         alert = helper.get_alert(fingerprint)
         matchers = helper.get_matchers_by_alert(alert, include_terms=criteria)
         self.log.info("Matchers {0}".format(matchers))
@@ -208,19 +209,26 @@ class SaAmtool(BotPlugin):
         helper = AmtoolHelper(
             alertmanager_address=self.config['server_address'])
         if start is not None:
-            start_period = datetime.strptime(start, '%Y-%m-%dT%H:%M:%SZ')
+            start_period = dateparser.parse(start)
         else:
             start_period = datetime.now().utcnow()
 
         if end is not None:
-            end_period = datetime.strptime(end, '%Y-%m-%dT%H:%M:%SZ')
+            end_period = dateparser.parse(end)
         else:
             cal = pdt.Calendar()
             diff = cal.parseDT(duration, sourceTime=datetime.min)[
                        0] - datetime.min
             end_period = start_period + diff
+
+        utc = pytz.UTC
+
+        start_period = utc.localize(start_period)
+        end_period = utc.localize(end_period)
+
         parsed_matchers = helper.get_matchers_by_terms(matchers)
         self.log.info("Suppressing {0}->{1}".format(start_period, end_period))
+        self.log.info("Matchers {0}".format(parsed_matchers))
         result = helper.post_silence(
             matchers=parsed_matchers,
             starts_at=start_period.isoformat(),
@@ -228,13 +236,13 @@ class SaAmtool(BotPlugin):
             created_by=author,
             comment=comment
         )
-
+        self.log.info("Added {0}".format(result))
         self.send_card(title="Silence added until {0}".format(end_period),
                     body="Alert created by {0} with description '{1}'. To cancel  !amtool silence expire {2}".format(author, comment, result.silence_id),
                     #                       thumbnail='https://raw.githubusercontent.com/errbotio/errbot/master/docs/_static/errbot.png',
                     #                       image='https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png',
                     # link=result["generatorURL"],
-                    fields=helper.convert_matchers_to_tuples(matchers),
+                    fields=helper.convert_matchers_to_tuples(parsed_matchers),
                     color='blue',
                     in_reply_to=mess)
 
@@ -255,7 +263,7 @@ class SaAmtool(BotPlugin):
         return "Silence deleted"
 
     @arg_botcmd('--expired', action='store_true')
-    @arg_botcmd('--within', type=str, default=None)
+    @arg_botcmd('--within', type=str, default="")
     @arg_botcmd('matchers', type=str, metavar='matchers', nargs='+',
                 template="amtool_silence_query")
     def amtool_silence_query(self, mess, expired=None, within=None, matchers=[]):
@@ -300,6 +308,7 @@ returns all silences that expired within the preceeding 2 hours.
         """
         helper = AmtoolHelper(
             alertmanager_address=self.config['server_address'])
-        filters = helper.get_matchers_by_terms(matchers)
-        result = helper.get_silences(filter=filters)
+        filters = helper.get_filters_by_terms(matchers)
+        self.log.info("Expired {0} within {1} filtered {2}".format(expired, within, filters))
+        result = helper.get_silences(filter=filters, expired=expired, within=within)
         return {"silences": result}
