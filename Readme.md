@@ -46,14 +46,14 @@ Using the `!amtool alert query` command, you can list all alerts that have been 
 to Alertmanager:
 
 ```
-!amtool alert query
+!amtool alert query -
 
 Alertname     Starts At                Summary
 EndpointDown  2018-04-03 08:48:47 UTC  Endpoint http://localhost:8080 down
 
 ```
 
-
+Note: use `-` to indicate absence of specific filter criteria.
 
 You can also filter alerts by their labels using the appropriate matcher. 
 A matcher contains the label name, the appropriate operation, which can be = 
@@ -130,14 +130,16 @@ Output
 12b7b9e1-f48a-4ceb-bd85-65ac882ceed1
 ```
 
-## Querying current silences `!amtool silence query` 
+## Querying current silences `!amtool silence query <matchers> | -` 
 
 The command `!amtool silence query` 
 will show the list of all non-expired silences:
 
 ```
-!amtool silence query`
+!amtool silence query -
 ```
+
+Note: use `-` to indicate absence of specific filter criteria. 
 
 The output contains the ID of the silence, the list of matchers, the expiration timestamp, the author, and a comment:
 
